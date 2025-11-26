@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Plus, Edit2, Trash2, AlertCircle, CheckCircle2, Calendar } from 'lucide-react';
+import { Plus, Edit2, Trash2, AlertCircle, CheckCircle2, Calendar, RefreshCw } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -26,7 +26,7 @@ export default function TransactionMotors() {
     });
 
     const [transactionRows, setTransactionRows] = useState([]);
-    const [editingRowId, setEditingRowId] = useState(null);
+    const [editingTransactionId, setEditingTransactionId] = useState(null);
 
     const [spareMotors, setSpareMotors] = useState([]);
     const [allocatedMotors, setAllocatedMotors] = useState([]);
@@ -38,7 +38,7 @@ export default function TransactionMotors() {
                 axios.get(`${API_URL}/departments`),
                 axios.get(`${API_URL}/machines`),
                 axios.get(`${API_URL}/motors`),
-                axios.get(`${API_URL}/motor-schedules`),
+                axios.get(`${API_URL}/schedules`),
                 axios.get(`${API_URL}/transaction-motors`),
                 axios.get(`${API_URL}/motor-allocations`)
             ]);
@@ -74,7 +74,17 @@ export default function TransactionMotors() {
     // Get allocated motors for the department
     const getAllocatedMotorsForDept = () => {
         if (!formData.dept_id) return [];
-        return allocatedMotors.filter(am => am.dept_id === Number(formData.dept_id));
+        return allocatedMotors
+            .filter(am => am.dept_id === Number(formData.dept_id))
+            .map(am => ({
+                motor_code: am.motor_id,
+                motor_name: motors.find(m => m.motor_code === am.motor_id)?.motor_name || am.motor_id
+            }));
+    };
+
+    // Get motor name for display
+    const getMotorName = (motorCode) => {
+        return motors.find(m => m.motor_code === motorCode)?.motor_name || motorCode;
     };
 
     // Handle initial form change
@@ -95,23 +105,31 @@ export default function TransactionMotors() {
 
         try {
             setLoading(true);
-            const response = await axios.get(`${API_URL}/transaction-motors/by-motor`, {
-                params: {
-                    motor_id: formData.motor_id,
-                    dept_id: formData.dept_id,
-                    machine_id: formData.machine_id
-                }
-            });
+
+            // Check if transaction already exists for this motor on this date
+            const existingTransaction = transactions.find(
+                t => t.motor_id === formData.motor_id &&
+                    new Date(t.date).toISOString().split('T')[0] === formData.date &&
+                    t.machine_id === Number(formData.machine_id)
+            );
+
+            // Fetch motor schedules for the selected motor
+            const schedulesRes = await axios.get(
+                `${API_URL}/motor-schedules/by-motor/${formData.motor_id}`
+            );
+
+            setMotorSchedules(schedulesRes.data.data);
 
             // Initialize transaction rows with motor data
             const motorData = motors.find(m => m.motor_code === formData.motor_id);
             const newRow = {
                 id: Date.now(),
+                transaction_id: existingTransaction?.transaction_id || null,
                 motor_id: formData.motor_id,
+                motor_name: motorData?.motor_name || '',
                 machine_id: formData.machine_id,
                 dept_id: formData.dept_id,
-                motor_name: motorData?.motor_name || '',
-                new_motor_id: '',
+                new_motor_id: existingTransaction?.new_motor_id || '',
                 schedule_id: '',
                 schedule_name: '',
                 frequency: '',
@@ -124,6 +142,9 @@ export default function TransactionMotors() {
             };
 
             setTransactionRows([newRow]);
+            if (existingTransaction) {
+                setEditingTransactionId(existingTransaction.transaction_id);
+            }
             setError(null);
         } catch (error) {
             setError('Error loading motors: ' + error.response?.data?.message || error.message);
@@ -139,19 +160,22 @@ export default function TransactionMotors() {
                 if (row.id === rowId) {
                     const updatedRow = { ...row, [field]: value };
 
-                    // If schedule is changed, fetch frequency
+                    // If schedule is changed, fetch frequency and schedule name
                     if (field === 'schedule_id') {
                         const selectedSchedule = motorSchedules.find(
-                            ms => ms.schedule_id === Number(value)
+                            ms => ms.allocation_id === Number(value)
                         );
                         if (selectedSchedule) {
-                            updatedRow.frequency = selectedSchedule.frequency;
+                            updatedRow.frequency = selectedSchedule.frequency || '';
                             updatedRow.schedule_name = selectedSchedule.Schedule?.schedule_name || '';
+                            
                             // Calculate due date
-                            const lastDate = new Date(updatedRow.last_service_date);
-                            const dueDate = new Date(lastDate);
-                            dueDate.setDate(dueDate.getDate() + selectedSchedule.frequency);
-                            updatedRow.due_date = dueDate.toISOString().split('T')[0];
+                            if (updatedRow.last_service_date && selectedSchedule.frequency) {
+                                const lastDate = new Date(updatedRow.last_service_date);
+                                const dueDate = new Date(lastDate);
+                                dueDate.setDate(dueDate.getDate() + parseInt(selectedSchedule.frequency));
+                                updatedRow.due_date = dueDate.toISOString().split('T')[0];
+                            }
                         }
                     }
 
@@ -159,6 +183,11 @@ export default function TransactionMotors() {
                     if (field === 'ok' && value === true) {
                         const today = new Date().toISOString().split('T')[0];
                         updatedRow.service_date = today;
+                    }
+
+                    // If ok is unchecked, clear service date
+                    if (field === 'ok' && value === false) {
+                        updatedRow.service_date = '';
                     }
 
                     // If last service date is changed, recalculate due date
@@ -175,23 +204,6 @@ export default function TransactionMotors() {
             })
         );
     };
-
-    // Fetch motor schedules when motor is selected
-    useEffect(() => {
-        if (formData.motor_id) {
-            const fetchMotorSchedules = async () => {
-                try {
-                    const response = await axios.get(
-                        `${API_URL}/motor-schedules/by-motor/${formData.motor_id}`
-                    );
-                    setMotorSchedules(response.data.data);
-                } catch (error) {
-                    console.error('Error fetching motor schedules:', error);
-                }
-            };
-            fetchMotorSchedules();
-        }
-    }, [formData.motor_id]);
 
     // Handle submit
     const handleSubmit = async (e) => {
@@ -220,26 +232,91 @@ export default function TransactionMotors() {
                     winder_cmp: formData.winder_cmp || null
                 };
 
-                await axios.post(`${API_URL}/transaction-motors`, transactionData);
+                if (editingTransactionId) {
+                    // Update existing transaction
+                    await axios.put(`${API_URL}/transaction-motors/${editingTransactionId}`, transactionData);
+                } else {
+                    // Create new transaction
+                    await axios.post(`${API_URL}/transaction-motors`, transactionData);
+                }
 
-                // Update motor schedule
+                // Update motor schedule allocation if schedule was selected
                 if (row.schedule_id) {
-                    await axios.put(
-                        `${API_URL}/motor-schedule-allocations/${row.schedule_id}`,
-                        {
-                            last_service_date: row.service_date || row.last_service_date,
-                            next_service_date: row.due_date,
-                            frequency: row.cycle || 1
-                        }
-                    );
+                    const updateData = {
+                        last_service_date: row.service_date || row.last_service_date,
+                        next_service_date: row.due_date,
+                        frequency: row.cycle || 1
+                    };
+                    
+                    try {
+                        await axios.put(
+                            `${API_URL}/motor-schedule-allocations/${row.schedule_id}`,
+                            updateData
+                        );
+                    } catch (scheduleError) {
+                        console.error('Error updating schedule:', scheduleError);
+                    }
                 }
             }
 
-            setSuccess('Transaction saved successfully');
+            setSuccess(editingTransactionId ? 'Transaction updated successfully' : 'Transaction saved successfully');
             resetForm();
             fetchData();
         } catch (error) {
             setError('Error saving transaction: ' + error.response?.data?.message || error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Handle edit from table
+    const handleEditTransaction = (transaction) => {
+        setFormData({
+            date: new Date(transaction.date).toISOString().split('T')[0],
+            dept_id: transaction.dept_id || '',
+            motor_id: transaction.motor_id,
+            machine_id: transaction.machine_id || '',
+            serviced_by: transaction.serviced_by || 'OWN SERVICE',
+            winder_cmp: transaction.winder_cmp || '',
+            other_works: transaction.other_works || ''
+        });
+
+        const motorData = motors.find(m => m.motor_code === transaction.motor_id);
+        const newRow = {
+            id: Date.now(),
+            transaction_id: transaction.transaction_id,
+            motor_id: transaction.motor_id,
+            motor_name: motorData?.motor_name || '',
+            machine_id: transaction.machine_id,
+            dept_id: transaction.dept_id,
+            new_motor_id: transaction.new_motor_id || '',
+            schedule_id: '',
+            schedule_name: '',
+            frequency: '',
+            last_service_date: new Date(transaction.date).toISOString().split('T')[0],
+            next_frequency: 0,
+            cycle: 1,
+            due_date: '',
+            service_date: '',
+            ok: false
+        };
+
+        setTransactionRows([newRow]);
+        setEditingTransactionId(transaction.transaction_id);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Handle delete transaction
+    const handleDeleteTransaction = async (transaction_id) => {
+        if (!confirm('Are you sure you want to delete this transaction?')) return;
+
+        try {
+            setLoading(true);
+            await axios.delete(`${API_URL}/transaction-motors/${transaction_id}`);
+            setSuccess('Transaction deleted successfully');
+            fetchData();
+        } catch (error) {
+            setError('Error deleting transaction: ' + error.response?.data?.message || error.message);
         } finally {
             setLoading(false);
         }
@@ -257,6 +334,7 @@ export default function TransactionMotors() {
         });
         setTransactionRows([]);
         setMotorSchedules([]);
+        setEditingTransactionId(null);
     };
 
     return (
@@ -372,10 +450,10 @@ export default function TransactionMotors() {
                                 </select>
                             </div>
 
-                            {/* Motor ID */}
+                            {/* Motor Name */}
                             <div>
                                 <label className="block text-sm font-medium text-indigo-700 mb-2">
-                                    Motor ID <span className="text-red-500">*</span>
+                                    Motor Name <span className="text-red-500">*</span>
                                 </label>
                                 <select
                                     name="motor_id"
@@ -387,8 +465,8 @@ export default function TransactionMotors() {
                                 >
                                     <option value="">Select Motor</option>
                                     {getAllocatedMotorsForDept().map(motor => (
-                                        <option key={motor.motor_id} value={motor.motor_id}>
-                                            {motor.motor_id}
+                                        <option key={motor.motor_code} value={motor.motor_code}>
+                                            {motor.motor_name}
                                         </option>
                                     ))}
                                 </select>
@@ -495,10 +573,10 @@ export default function TransactionMotors() {
                             <table className="w-full">
                                 <thead className="bg-gradient-to-r from-indigo-50 to-purple-50">
                                     <tr>
-                                        <th className="px-4 py-3 text-left text-xs font-semibold text-indigo-700 border-b border-indigo-200">Motor Code</th>
-                                        <th className="px-4 py-3 text-left text-xs font-semibold text-indigo-700 border-b border-indigo-200">New Motor ID</th>
-                                        <th className="px-4 py-3 text-left text-xs font-semibold text-indigo-700 border-b border-indigo-200">Schedule</th>
-                                        <th className="px-4 py-3 text-left text-xs font-semibold text-indigo-700 border-b border-indigo-200">Frequency</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-indigo-700 border-b border-indigo-200">Motor Name</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-indigo-700 border-b border-indigo-200">New Motor</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-indigo-700 border-b border-indigo-200">Schedule Name</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-indigo-700 border-b border-indigo-200">Frequency (Days)</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-indigo-700 border-b border-indigo-200">Last Service</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-indigo-700 border-b border-indigo-200">Next Freq</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-indigo-700 border-b border-indigo-200">Cycle</th>
@@ -510,8 +588,8 @@ export default function TransactionMotors() {
                                 <tbody className="divide-y divide-indigo-100">
                                     {transactionRows.map((row) => (
                                         <tr key={row.id} className="hover:bg-indigo-50 transition-colors">
-                                            <td className="px-4 py-3 text-indigo-700 font-mono text-sm font-semibold">
-                                                {row.motor_id}
+                                            <td className="px-4 py-3 text-indigo-700 font-semibold text-sm">
+                                                {row.motor_name}
                                             </td>
                                             <td className="px-4 py-3">
                                                 <select
@@ -519,10 +597,10 @@ export default function TransactionMotors() {
                                                     onChange={(e) => handleRowChange(row.id, 'new_motor_id', e.target.value)}
                                                     className="w-full px-2 py-1.5 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                                                 >
-                                                    <option value="">Select Spare Motor</option>
+                                                    <option value="">Select Spare</option>
                                                     {getAvailableNewMotors().map(motor => (
                                                         <option key={motor.motor_id} value={motor.motor_id}>
-                                                            {motor.motor_id}
+                                                            {getMotorName(motor.motor_id)}
                                                         </option>
                                                     ))}
                                                 </select>
@@ -571,7 +649,7 @@ export default function TransactionMotors() {
                                                     type="number"
                                                     value={row.cycle}
                                                     readOnly
-                                                    className="w-full px-2 py-1.5 border border-indigo-300 rounded-lg bg-gray-50 text-indigo-700 text-sm"
+                                                    className="w-full px-2 py-1.5 border border-indigo-300 rounded-lg bg-gray-50 text-indigo-700 text-sm text-center"
                                                 />
                                             </td>
                                             <td className="px-4 py-3">
@@ -619,7 +697,7 @@ export default function TransactionMotors() {
 
                 {/* Save Button */}
                 {transactionRows.length > 0 && (
-                    <div className="flex gap-3 justify-end">
+                    <div className="flex gap-3 justify-end mb-8">
                         <button
                             onClick={() => resetForm()}
                             className="px-6 py-3 bg-slate-500 text-white rounded-xl hover:bg-slate-600 transition-all shadow-md flex items-center gap-2 font-medium"
@@ -637,10 +715,91 @@ export default function TransactionMotors() {
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
-                            Save Transaction
+                            {editingTransactionId ? 'Update' : 'Save'} Transaction
                         </button>
                     </div>
                 )}
+
+                {/* Saved Transactions Table */}
+                <div className="bg-white rounded-2xl shadow-xl shadow-indigo-200/50 border border-indigo-200 overflow-hidden">
+                    <div className="px-6 py-4 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-200 flex items-center justify-between">
+                        <h2 className="text-lg font-semibold text-indigo-700 flex items-center gap-2">
+                            <RefreshCw className="w-5 h-5" />
+                            Saved Transactions
+                        </h2>
+                        <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">
+                            {transactions.length}
+                        </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-gradient-to-r from-indigo-50 to-purple-50">
+                                <tr>
+                                    <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Date</th>
+                                    <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Motor</th>
+                                    <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Machine</th>
+                                    <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">New Motor</th>
+                                    <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Serviced By</th>
+                                    <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Other Works</th>
+                                    <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-indigo-100">
+                                {transactions.length > 0 ? (
+                                    transactions.map(transaction => (
+                                        <tr key={transaction.transaction_id} className="hover:bg-indigo-50 transition-colors">
+                                            <td className="px-6 py-4 text-indigo-700 font-medium">
+                                                {new Date(transaction.date).toLocaleDateString()}
+                                            </td>
+                                            <td className="px-6 py-4 text-indigo-700">
+                                                {getMotorName(transaction.motor_id)}
+                                            </td>
+                                            <td className="px-6 py-4 text-indigo-700">
+                                                {machines.find(m => m.machine_id === transaction.machine_id)?.machine_number || 'N/A'}
+                                            </td>
+                                            <td className="px-6 py-4 text-indigo-700">
+                                                {transaction.new_motor_id ? getMotorName(transaction.new_motor_id) : '-'}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="inline-flex items-center px-3 py-1 bg-blue-100 rounded-full text-sm font-medium text-blue-700">
+                                                    {transaction.serviced_by}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-indigo-700">
+                                                {transaction.other_works || '-'}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => handleEditTransaction(transaction)}
+                                                        className="px-3 py-1.5 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-all shadow-md shadow-indigo-500/30 flex items-center gap-1 text-sm font-medium"
+                                                    >
+                                                        <Edit2 className="w-3 h-3" />
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteTransaction(transaction.transaction_id)}
+                                                        className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all shadow-md shadow-red-500/30 flex items-center gap-1 text-sm font-medium"
+                                                    >
+                                                        <Trash2 className="w-3 h-3" />
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan="7" className="px-6 py-12 text-center">
+                                            <p className="text-indigo-500">No transactions recorded yet</p>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
 
                 {/* Loading Overlay */}
                 {loading && (
