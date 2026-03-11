@@ -31,13 +31,9 @@ Machine.init({
         type: DataTypes.STRING(100),
         allowNull: false
     },
-    make_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-            model: Make,
-            key: 'make_id'
-        }
+    make_name: {
+        type: DataTypes.STRING(100),
+        allowNull: false
     },
     year_of_manufacture: {
         type: DataTypes.INTEGER,
@@ -68,6 +64,5 @@ Machine.init({
 
 // Define associations
 Machine.belongsTo(Department, { foreignKey: 'dept_id' });
-Machine.belongsTo(Make, { foreignKey: 'make_id' });
 
 module.exports = Machine;

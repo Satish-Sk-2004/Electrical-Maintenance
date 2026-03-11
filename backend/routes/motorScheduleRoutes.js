@@ -5,20 +5,15 @@ const {
     createMotorSchedule,
     updateMotorSchedule,
     deleteMotorSchedule,
-    getMotorSchedulesByMotor,
-    getMotorSchedulesByDeptAndMachine,
-    getMotorSchedulesLookup
+    getMotorSchedulesLookup,
+    getMotorSchedulesByMotor
 } = require('../controllers/motorScheduleController');
 
-// GET endpoints first (before parameterized routes)
 router.get('/lookup', getMotorSchedulesLookup);
-router.get('/by-motor/:motor_code', getMotorSchedulesByMotor);
-router.get('/by-dept-machine', getMotorSchedulesByDeptAndMachine);
-
-// Other endpoints
+router.get('/by-motor/:motor_id', getMotorSchedulesByMotor);  // Add this line
 router.get('/', getAllMotorSchedules);
 router.post('/', createMotorSchedule);
-router.put('/:allocation_id', updateMotorSchedule);
-router.delete('/:allocation_id', deleteMotorSchedule);
+router.put('/:motor_schedule_id', updateMotorSchedule);
+router.delete('/:motor_schedule_id', deleteMotorSchedule);
 
 module.exports = router;

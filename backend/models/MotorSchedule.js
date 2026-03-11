@@ -1,7 +1,6 @@
 const { Model, DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 const Department = require('./Department');
-const Schedule = require('./Schedule');
 const WorkType = require('./WorkType');
 const Group = require('./Group');
 
@@ -21,13 +20,9 @@ MotorSchedule.init({
             key: 'dept_id'
         }
     },
-    schedule_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-            model: Schedule,
-            key: 'schedule_id'
-        }
+    schedule_name: {
+        type: DataTypes.STRING,
+        allowNull: false
     },
     work_id: {
         type: DataTypes.INTEGER,
@@ -57,13 +52,10 @@ MotorSchedule.init({
         type: DataTypes.TEXT,
         allowNull: true
     },
-    service_type_id: {
-        type: DataTypes.INTEGER,
+    service_type: {
+        type: DataTypes.ENUM('Bearing', 'Greasing', 'Winding'),
         allowNull: false,
-        references: {
-            model: Department,
-            key: 'dept_id'
-        }
+        defaultValue: 'Bearing'
     }
 }, {
     sequelize,
@@ -73,9 +65,7 @@ MotorSchedule.init({
 });
 
 MotorSchedule.belongsTo(Department, { as: 'Department', foreignKey: 'dept_id' });
-MotorSchedule.belongsTo(Schedule, { foreignKey: 'schedule_id' });
 MotorSchedule.belongsTo(WorkType, { foreignKey: 'work_id' });
 MotorSchedule.belongsTo(Group, { foreignKey: 'group_id' });
-MotorSchedule.belongsTo(Department, { as: 'ServiceType', foreignKey: 'service_type_id' });
 
 module.exports = MotorSchedule;

@@ -2,23 +2,16 @@ const MotorAllocation = require('../models/MotorAllocation');
 const Motor = require('../models/Motor');
 const Department = require('../models/Department');
 const Machine = require('../models/Machine');
-const Make = require('../models/Make');
 
 exports.getAllAllocations = async (req, res) => {
     try {
         const allocations = await MotorAllocation.findAll({
             include: [
-                { model: Department, attributes: ['dept_name'] },
-                { model: Machine, attributes: ['machine_number'] },
+                { model: Department, attributes: ['dept_id', 'dept_name'] },
+                { model: Machine, attributes: ['machine_id', 'machine_number'] },
                 { 
                     model: Motor, 
-                    attributes: ['motor_code', 'motor_name', 'capacity'],
-                    include: [
-                        { 
-                            model: Make, 
-                            attributes: ['make_name']
-                        }
-                    ]
+                    attributes: ['motor_code', 'motor_name', 'capacity']
                 }
             ],
             order: [['allocation_id', 'DESC']]
@@ -37,6 +30,7 @@ exports.getAllAllocations = async (req, res) => {
         });
     }
 };
+
 
 exports.createAllocation = async (req, res) => {
     try {
@@ -83,13 +77,7 @@ exports.createAllocation = async (req, res) => {
                 { model: Machine, attributes: ['machine_number'] },
                 { 
                     model: Motor, 
-                    attributes: ['motor_code', 'motor_name', 'capacity'],
-                    include: [
-                        { 
-                            model: Make, 
-                            attributes: ['make_name']
-                        }
-                    ]
+                    attributes: ['motor_code', 'motor_name', 'capacity']
                 }
             ]
         });

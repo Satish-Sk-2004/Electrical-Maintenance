@@ -1,13 +1,11 @@
 const Machine = require('../models/Machine');
 const Department = require('../models/Department');
-const Make = require('../models/Make');
 
 exports.getMachines = async (req, res) => {
     try {
         const machines = await Machine.findAll({
             include: [
-                { model: Department, attributes: ['dept_name'] },
-                { model: Make, attributes: ['make_name'] }
+                { model: Department, attributes: ['dept_name'] }
             ],
             order: [['machine_id', 'ASC']]
         });
@@ -38,24 +36,6 @@ exports.getDepartments = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: 'Failed to fetch departments',
-            error: error.message
-        });
-    }
-};
-
-exports.getMakes = async (req, res) => {
-    try {
-        const makes = await Make.findAll({
-            order: [['make_name', 'ASC']]
-        });
-        return res.status(200).json({
-            success: true,
-            data: makes
-        });
-    } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: 'Failed to fetch makes',
             error: error.message
         });
     }
@@ -94,8 +74,7 @@ exports.updateMachine = async (req, res) => {
 
         const updatedMachine = await Machine.findByPk(machine_id, {
             include: [
-                { model: Department, attributes: ['dept_name'] },
-                { model: Make, attributes: ['make_name'] }
+                { model: Department, attributes: ['dept_name'] }
             ]
         });
 

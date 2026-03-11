@@ -1,15 +1,13 @@
 const Motor = require('../models/Motor');
 const Department = require('../models/Department');
 const Machine = require('../models/Machine');
-const Make = require('../models/Make');
 
 exports.getMotors = async (req, res) => {
     try {
         const motors = await Motor.findAll({
             include: [
                 { model: Department, attributes: ['dept_name'] },
-                { model: Machine, attributes: ['machine_number'] },
-                { model: Make, attributes: ['make_name'] }
+                { model: Machine, attributes: ['machine_number'] }
             ],
             order: [['motor_code', 'ASC']]
         });
@@ -30,10 +28,10 @@ exports.getMotors = async (req, res) => {
 
 exports.addMotor = async (req, res) => {
     try {
-        const { motor_code, dept_id, machine_id, make_id, motor_name, capacity, kw, rpm, frame_size, voltage, current} = req.body;
+        const { motor_code, dept_id, machine_id, make_name, motor_name, capacity, kw, rpm, frame_size, voltage, current, motor_description } = req.body;
 
         // Validate required fields
-        if (!motor_code || !motor_name || !dept_id || !make_id) {
+        if (!motor_code || !motor_name || !dept_id || !make_name) {
             return res.status(400).json({
                 success: false,
                 message: 'Motor code, name, department and make are required'
@@ -49,25 +47,30 @@ exports.addMotor = async (req, res) => {
             });
         }
 
+        // Auto-generate description if kw exists
+        const finalDescription = kw && motor_name && make_name
+            ? `${motor_name} (${make_name}) ${kw}kw ${rpm || ''}rpm`.trim()
+            : motor_description;
+
         const motor = await Motor.create({
             motor_code,
             dept_id,
             machine_id: machine_id || null,
-            make_id,
+            make_name,
             motor_name,
             capacity,
             kw,
             rpm,
             frame_size,
             voltage,
-            current
+            current,
+            motor_description: finalDescription
         });
 
         const newMotor = await Motor.findByPk(motor_code, {
             include: [
                 { model: Department, attributes: ['dept_name'] },
-                { model: Machine, attributes: ['machine_number'] },
-                { model: Make, attributes: ['make_name'] }
+                { model: Machine, attributes: ['machine_number'] }
             ]
         });
 
@@ -88,7 +91,7 @@ exports.addMotor = async (req, res) => {
 exports.updateMotor = async (req, res) => {
     try {
         const { motor_code } = req.params;
-        const { dept_id, machine_id, make_id, motor_name, capacity, kw, rpm, frame_size, voltage, current } = req.body;
+        const { dept_id, machine_id, make_name, motor_name, capacity, kw, rpm, frame_size, voltage, current, motor_description } = req.body;
 
         const motor = await Motor.findByPk(motor_code);
         if (!motor) {
@@ -98,24 +101,29 @@ exports.updateMotor = async (req, res) => {
             });
         }
 
+        // Auto-generate description if kw exists
+        const finalDescription = kw && motor_name && make_name 
+            ? `${motor_name} (${make_name}) ${kw}kw ${rpm || ''}rpm`.trim()
+            : motor_description;
+
         await motor.update({
             dept_id,
             machine_id: machine_id || null,
-            make_id,
+            make_name,
             motor_name,
             capacity,
             kw,
             rpm,
             frame_size,
             voltage,
-            current
+            current,
+            motor_description: finalDescription
         });
 
         const updatedMotor = await Motor.findByPk(motor_code, {
             include: [
                 { model: Department, attributes: ['dept_name'] },
-                { model: Machine, attributes: ['machine_number'] },
-                { model: Make, attributes: ['make_name'] }
+                { model: Machine, attributes: ['machine_number'] }
             ]
         });
 
@@ -176,8 +184,7 @@ exports.getMotorsByDepartment = async (req, res) => {
             where: { dept_id },
             include: [
                 { model: Department, attributes: ['dept_name'] },
-                { model: Machine, attributes: ['machine_number'] },
-                { model: Make, attributes: ['make_name'] }
+                { model: Machine, attributes: ['machine_number'] }
             ],
             order: [['motor_name', 'ASC']]
         });

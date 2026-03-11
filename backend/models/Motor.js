@@ -2,7 +2,6 @@ const { Model, DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 const Department = require('./Department');
 const Machine = require('./Machine');
-const Make = require('./Make');
 
 class Motor extends Model {}
 
@@ -28,13 +27,9 @@ Motor.init({
             key: 'machine_id'
         }
     },
-    make_id: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        references: {
-            model: Make,
-            key: 'make_id'
-        }
+    make_name: {
+        type: DataTypes.STRING(100),
+        allowNull: false
     },
     motor_name: {
         type: DataTypes.STRING(100),
@@ -64,6 +59,10 @@ Motor.init({
         type: DataTypes.DECIMAL(5, 2),
         allowNull: true
     },
+    motor_description: {
+        type: DataTypes.STRING(255),
+        allowNull: true
+    },
     is_active: {
         type: DataTypes.BOOLEAN,
         defaultValue: true
@@ -77,6 +76,5 @@ Motor.init({
 
 Motor.belongsTo(Department, { foreignKey: 'dept_id' });
 Motor.belongsTo(Machine, { foreignKey: 'machine_id' });
-Motor.belongsTo(Make, { foreignKey: 'make_id' });
 
 module.exports = Motor;

@@ -1,19 +1,19 @@
-const MotorScheduleAllocation = require('../models/MotorScheduleAllocation');
-const Motor = require('../models/Motor');
-const Schedule = require('../models/Schedule');
+const MotorSchedule = require('../models/MotorSchedule');
 const Department = require('../models/Department');
+const WorkType = require('../models/WorkType');
+const Group = require('../models/Group');
 const Machine = require('../models/Machine');
+
 
 exports.getAllMotorSchedules = async (req, res) => {
     try {
-        const motorSchedules = await MotorScheduleAllocation.findAll({
+        const motorSchedules = await MotorSchedule.findAll({
             include: [
-                { model: Motor, attributes: ['motor_code', 'motor_name'] },
-                { model: Schedule, attributes: ['schedule_id', 'schedule_name'] },
-                { model: Department, attributes: ['dept_id', 'dept_name'] },
-                { model: Machine, attributes: ['machine_id', 'machine_number'] }
+                { model: Department, as: 'Department', attributes: ['dept_id', 'dept_name'] },
+                { model: WorkType, attributes: ['work_id', 'work_type'] },
+                { model: Group, attributes: ['group_id', 'group_name'] }
             ],
-            order: [['allocation_id', 'DESC']]
+            order: [['motor_schedule_id', 'DESC']]
         });
 
         return res.status(200).json({
@@ -32,55 +32,60 @@ exports.getAllMotorSchedules = async (req, res) => {
 
 exports.createMotorSchedule = async (req, res) => {
     try {
-        const { motor_id, dept_id, machine_id, schedule_id, frequency, last_service_date } = req.body;
+        const { dept_id, schedule_name, work_id, frequency, group_id, description, service_type, is_deactivated } = req.body;
 
         // Validate required fields
-        if (!motor_id || !schedule_id) {
+        if (!dept_id || !schedule_name || !work_id || !group_id) {
             return res.status(400).json({
                 success: false,
-                message: 'Motor ID and Schedule ID are required'
+                message: 'Department, Schedule Name, WorkType, and Group are required'
             });
         }
 
-        // Validate motor exists
-        const motor = await Motor.findByPk(motor_id);
-        if (!motor) {
+        // Validate department exists
+        const department = await Department.findByPk(dept_id);
+        if (!department) {
             return res.status(400).json({
                 success: false,
-                message: 'Motor not found'
+                message: 'Department not found'
             });
         }
 
-        // Validate schedule exists
-        const schedule = await Schedule.findByPk(schedule_id);
-        if (!schedule) {
+        // Validate worktype exists
+        const workType = await WorkType.findByPk(work_id);
+        if (!workType) {
             return res.status(400).json({
                 success: false,
-                message: 'Schedule not found'
+                message: 'WorkType not found'
             });
         }
 
-        // Calculate due date
-        const lastServiceDate = new Date(last_service_date);
-        const dueDate = new Date(lastServiceDate);
-        dueDate.setDate(dueDate.getDate() + (frequency || 0));
+        // Validate group exists
+        const group = await Group.findByPk(group_id);
+        if (!group) {
+            return res.status(400).json({
+                success: false,
+                message: 'Group not found'
+            });
+        }
 
-        const motorSchedule = await MotorScheduleAllocation.create({
-            motor_id,
-            dept_id: dept_id || null,
-            machine_id: machine_id || null,
-            schedule_id,
+
+        const motorSchedule = await MotorSchedule.create({
+            dept_id,
+            schedule_name,
+            work_id,
             frequency: frequency || 0,
-            last_service_date: last_service_date || new Date(),
-            next_service_date: dueDate
+            group_id,
+            description: description || null,
+            service_type: service_type || 'Bearing',
+            is_deactivated: is_deactivated || false
         });
 
-        const newMotorSchedule = await MotorScheduleAllocation.findByPk(motorSchedule.allocation_id, {
+        const newMotorSchedule = await MotorSchedule.findByPk(motorSchedule.motor_schedule_id, {
             include: [
-                { model: Motor, attributes: ['motor_code', 'motor_name'] },
-                { model: Schedule, attributes: ['schedule_id', 'schedule_name'] },
-                { model: Department, attributes: ['dept_id', 'dept_name'] },
-                { model: Machine, attributes: ['machine_id', 'machine_number'] }
+                { model: Department, as: 'Department', attributes: ['dept_id', 'dept_name'] },
+                { model: WorkType, attributes: ['work_id', 'work_type'] },
+                { model: Group, attributes: ['group_id', 'group_name'] }
             ]
         });
 
@@ -100,10 +105,10 @@ exports.createMotorSchedule = async (req, res) => {
 
 exports.updateMotorSchedule = async (req, res) => {
     try {
-        const { allocation_id } = req.params;
-        const { motor_id, dept_id, machine_id, schedule_id, frequency, last_service_date, next_service_date } = req.body;
+        const { motor_schedule_id } = req.params;
+        const { dept_id, schedule_name, work_id, frequency, group_id, description, service_type, is_deactivated } = req.body;
 
-        const motorSchedule = await MotorScheduleAllocation.findByPk(allocation_id);
+        const motorSchedule = await MotorSchedule.findByPk(motor_schedule_id);
         if (!motorSchedule) {
             return res.status(404).json({
                 success: false,
@@ -111,31 +116,22 @@ exports.updateMotorSchedule = async (req, res) => {
             });
         }
 
-        // Calculate new due date if last_service_date is provided
-        let newDueDate = next_service_date;
-        if (last_service_date && frequency) {
-            const lastDate = new Date(last_service_date);
-            const dueDate = new Date(lastDate);
-            dueDate.setDate(dueDate.getDate() + parseInt(frequency));
-            newDueDate = dueDate.toISOString().split('T')[0];
-        }
-
         await motorSchedule.update({
-            motor_id: motor_id || motorSchedule.motor_id,
-            dept_id: dept_id !== undefined ? dept_id : motorSchedule.dept_id,
-            machine_id: machine_id !== undefined ? machine_id : motorSchedule.machine_id,
-            schedule_id: schedule_id || motorSchedule.schedule_id,
+            dept_id: dept_id || motorSchedule.dept_id,
+            schedule_name: schedule_name || motorSchedule.schedule_name,
+            work_id: work_id || motorSchedule.work_id,
             frequency: frequency !== undefined ? frequency : motorSchedule.frequency,
-            last_service_date: last_service_date || motorSchedule.last_service_date,
-            next_service_date: newDueDate || motorSchedule.next_service_date
+            group_id: group_id || motorSchedule.group_id,
+            description: description !== undefined ? description : motorSchedule.description,
+            service_type: service_type || motorSchedule.service_type,
+            is_deactivated: is_deactivated !== undefined ? is_deactivated : motorSchedule.is_deactivated
         });
 
-        const updatedMotorSchedule = await MotorScheduleAllocation.findByPk(allocation_id, {
+        const updatedMotorSchedule = await MotorSchedule.findByPk(motor_schedule_id, {
             include: [
-                { model: Motor, attributes: ['motor_code', 'motor_name'] },
-                { model: Schedule, attributes: ['schedule_id', 'schedule_name'] },
-                { model: Department, attributes: ['dept_id', 'dept_name'] },
-                { model: Machine, attributes: ['machine_id', 'machine_number'] }
+                { model: Department, as: 'Department', attributes: ['dept_id', 'dept_name'] },
+                { model: WorkType, attributes: ['work_id', 'work_type'] },
+                { model: Group, attributes: ['group_id', 'group_name'] }
             ]
         });
 
@@ -155,9 +151,9 @@ exports.updateMotorSchedule = async (req, res) => {
 
 exports.deleteMotorSchedule = async (req, res) => {
     try {
-        const { allocation_id } = req.params;
+        const { motor_schedule_id } = req.params;
 
-        const motorSchedule = await MotorScheduleAllocation.findByPk(allocation_id);
+        const motorSchedule = await MotorSchedule.findByPk(motor_schedule_id);
         if (!motorSchedule) {
             return res.status(404).json({
                 success: false,
@@ -181,117 +177,15 @@ exports.deleteMotorSchedule = async (req, res) => {
     }
 };
 
-exports.getMotorSchedulesByMotor = async (req, res) => {
-    try {
-        const { motor_code } = req.params;
-
-        if (!motor_code) {
-            return res.status(400).json({
-                success: false,
-                message: 'Motor code is required'
-            });
-        }
-
-        const motorSchedules = await MotorScheduleAllocation.findAll({
-            where: { motor_id: motor_code },
-            include: [
-                { 
-                    model: Motor, 
-                    attributes: ['motor_code', 'motor_name']
-                },
-                { 
-                    model: Schedule, 
-                    attributes: ['schedule_id', 'schedule_name', 'description']
-                },
-                { 
-                    model: Department, 
-                    attributes: ['dept_id', 'dept_name']
-                },
-                { 
-                    model: Machine, 
-                    attributes: ['machine_id', 'machine_number']
-                }
-            ],
-            order: [['allocation_id', 'DESC']]
-        });
-
-        return res.status(200).json({
-            success: true,
-            data: motorSchedules
-        });
-    } catch (error) {
-        console.error('Error fetching motor schedules by motor:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Failed to fetch motor schedules',
-            error: error.message
-        });
-    }
-};
-
-exports.getMotorSchedulesByDeptAndMachine = async (req, res) => {
-    try {
-        const { dept_id, machine_id } = req.query;
-
-        if (!dept_id || !machine_id) {
-            return res.status(400).json({
-                success: false,
-                message: 'Department ID and Machine ID are required'
-            });
-        }
-
-        const motorSchedules = await MotorScheduleAllocation.findAll({
-            where: { 
-                dept_id: Number(dept_id),
-                machine_id: Number(machine_id)
-            },
-            include: [
-                { model: Motor, attributes: ['motor_code', 'motor_name'] },
-                { model: Schedule, attributes: ['schedule_id', 'schedule_name'] },
-                { model: Department, attributes: ['dept_id', 'dept_name'] },
-                { model: Machine, attributes: ['machine_id', 'machine_number'] }
-            ],
-            order: [['allocation_id', 'DESC']]
-        });
-
-        return res.status(200).json({
-            success: true,
-            data: motorSchedules
-        });
-    } catch (error) {
-        console.error('Error fetching motor schedules:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Failed to fetch motor schedules',
-            error: error.message
-        });
-    }
-};
-
-
 exports.getMotorSchedulesLookup = async (req, res) => {
     try {
-        const motorSchedules = await MotorScheduleAllocation.findAll({
-            attributes: ['allocation_id', 'motor_id', 'schedule_id', 'frequency', 'last_service_date', 'next_service_date'],
+        const motorSchedules = await MotorSchedule.findAll({
             include: [
-                { 
-                    model: Motor, 
-                    attributes: ['motor_code', 'motor_name']
-                },
-                { 
-                    model: Schedule, 
-                    attributes: ['schedule_id', 'schedule_name', 'description']
-                },
-                { 
-                    model: Department, 
-                    attributes: ['dept_id', 'dept_name']
-                },
-                { 
-                    model: Machine, 
-                    attributes: ['machine_id', 'machine_number']
-                }
+                { model: Department, as: 'Department', attributes: ['dept_id', 'dept_name'] },
+                { model: WorkType, attributes: ['work_id', 'work_type'] },
+                { model: Group, attributes: ['group_id', 'group_name'] }
             ],
-            order: [['allocation_id', 'DESC']]
+            order: [['motor_schedule_id', 'DESC']]
         });
 
         return res.status(200).json({
@@ -303,6 +197,36 @@ exports.getMotorSchedulesLookup = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: 'Failed to fetch motor schedules',
+            error: error.message
+        });
+    }
+};
+
+exports.getMotorSchedulesByMotor = async (req, res) => {
+    try {
+        const { motor_id } = req.params;
+        const MotorScheduleAllocation = require('../models/MotorScheduleAllocation');
+        const Schedule = require('../models/Schedule');
+
+        const schedules = await MotorScheduleAllocation.findAll({
+            where: { motor_id },
+            include: [
+                { model: Schedule, attributes: ['schedule_id', 'schedule_name', 'frequency'] },
+                { model: Department, attributes: ['dept_id', 'dept_name'] },
+                { model: Machine, attributes: ['machine_id', 'machine_number'] }
+            ],
+            order: [['allocation_id', 'DESC']]
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: schedules
+        });
+    } catch (error) {
+        console.error('Error fetching schedules by motor:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch schedules',
             error: error.message
         });
     }

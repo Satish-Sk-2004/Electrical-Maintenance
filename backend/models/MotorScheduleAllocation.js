@@ -14,7 +14,7 @@ MotorScheduleAllocation.init({
         autoIncrement: true
     },
     motor_id: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.STRING(50),
         allowNull: false,
         references: {
             model: Motor,

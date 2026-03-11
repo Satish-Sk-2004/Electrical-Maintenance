@@ -10,7 +10,6 @@ export default function Machines() {
     const navigate = useNavigate();
     const [machines, setMachines] = useState([]);
     const [departments, setDepartments] = useState([]);
-    const [makes, setMakes] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [editingId, setEditingId] = useState(null);
@@ -19,7 +18,7 @@ export default function Machines() {
         mill_name: '',
         machine_number: '',
         machine_name: '',
-        make_id: '',
+        make_name: '',
         year_of_manufacture: '',
         commissioning_date: '',
         manufacturer_name: '',
@@ -30,15 +29,13 @@ export default function Machines() {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [machinesRes, deptsRes, makesRes] = await Promise.all([
+            const [machinesRes, deptsRes] = await Promise.all([
                 axios.get(`${API_URL}/machines`),
-                axios.get(`${API_URL}/machines/departments`),
-                axios.get(`${API_URL}/machines/makes`)
+                axios.get(`${API_URL}/machines/departments`)
             ]);
 
             setMachines(machinesRes.data.data);
             setDepartments(deptsRes.data.data);
-            setMakes(makesRes.data.data);
         } catch (error) {
             setError('Error fetching data: ' + error.message);
         } finally {
@@ -64,7 +61,7 @@ export default function Machines() {
                 mill_name: '',
                 machine_number: '',
                 machine_name: '',
-                make_id: '',
+                make_name: '',
                 year_of_manufacture: '',
                 commissioning_date: '',
                 manufacturer_name: '',
@@ -86,7 +83,7 @@ export default function Machines() {
             mill_name: machine.mill_name || '',
             machine_number: machine.machine_number || '',
             machine_name: machine.machine_name || '',
-            make_id: machine.make_id || '',
+            make_name: machine.make_name || '',
             year_of_manufacture: machine.year_of_manufacture || '',
             commissioning_date: machine.commissioning_date ? new Date(machine.commissioning_date).toISOString().slice(0,10) : '',
             manufacturer_name: machine.manufacturer_name || '',
@@ -236,25 +233,20 @@ export default function Machines() {
                                 />
                             </div>
 
-                            {/* Make */}
+                            {/* Make Name Input */}
                             <div>
                                 <label className="block text-sm font-medium text-orange-700 mb-2">
                                     Make <span className="text-red-500">*</span>
                                 </label>
-                                <select
-                                    name="make_id"
-                                    value={formData.make_id}
+                                <input
+                                    type="text"
+                                    name="make_name"
+                                    value={formData.make_name}
                                     onChange={handleChange}
+                                    placeholder="Enter make name (e.g., Siemens, ABB, etc.)"
                                     className="w-full px-4 py-2.5 border border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
                                     required
-                                >
-                                    <option value="">Select Make</option>
-                                    {makes.map(make => (
-                                        <option key={make.make_id} value={make.make_id}>
-                                            {make.make_name}
-                                        </option>
-                                    ))}
-                                </select>
+                                />
                             </div>
 
                             {/* Year of Manufacture */}
@@ -343,7 +335,7 @@ export default function Machines() {
                                mill_name: '',
                                machine_number: '',
                                machine_name: '',
-                               make_id: '',
+                               make_name: '',
                                year_of_manufacture: '',
                                commissioning_date: '',
                                manufacturer_name: '',

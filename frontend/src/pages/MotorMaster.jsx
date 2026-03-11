@@ -7,7 +7,6 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 export default function MotorMaster() {
     const [motors, setMotors] = useState([]);
     const [departments, setDepartments] = useState([]);
-    const [makes, setMakes] = useState([]);
     const [machines, setMachines] = useState([]);
     const [filteredMachines, setFilteredMachines] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -17,7 +16,7 @@ export default function MotorMaster() {
     const [formData, setFormData] = useState({
         dept_id: '',
         machine_id: '',
-        make_id: '',
+        make_name: '',
         motor_code: '',
         motor_name: '',
         capacity: '',
@@ -25,23 +24,22 @@ export default function MotorMaster() {
         rpm: '',
         frame_size: '',
         voltage: '',
-        current: ''
+        current: '',
+        motor_description: ''
     });
 
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [motorsRes, deptRes, machinesRes, makesRes] = await Promise.all([
+            const [motorsRes, deptRes, machinesRes] = await Promise.all([
                 axios.get(`${API_URL}/motors`),
                 axios.get(`${API_URL}/departments`),
-                axios.get(`${API_URL}/machines`),
-                axios.get(`${API_URL}/makes`)
+                axios.get(`${API_URL}/machines`)
             ]);
 
             setMotors(motorsRes.data.data);
             setDepartments(deptRes.data.data);
             setMachines(machinesRes.data.data);
-            setMakes(makesRes.data.data);
         } catch (error) {
             setError('Error fetching data: ' + error.message);
         } finally {
@@ -71,10 +69,23 @@ export default function MotorMaster() {
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: type === 'checkbox' ? checked : value
-        }));
+        setFormData(prev => {
+            const updated = {
+                ...prev,
+                [name]: type === 'checkbox' ? checked : value
+            };
+            
+            // Auto-calculate capacity(HP) from KW
+            if (name === 'kw' && value) {
+                updated.capacity = (parseFloat(value) / 0.7457).toFixed(2);
+            }
+
+            if (name === 'motor_description' && value) {
+                updated.motor_description = `${formData.motor_name} (${formData.make_name}) ${updated.kw}kw ${updated.rpm}rpm`;
+            }
+            
+            return updated;
+        });
     };
 
     const handleSubmit = async (e) => {
@@ -99,7 +110,7 @@ export default function MotorMaster() {
         setFormData({
             dept_id: motor.dept_id || '',
             machine_id: motor.machine_id || '',
-            make_id: motor.make_id || '',
+            make_name: motor.make_name || '',
             motor_code: motor.motor_code || '',
             motor_name: motor.motor_name || '',
             capacity: motor.capacity || '',
@@ -107,7 +118,8 @@ export default function MotorMaster() {
             rpm: motor.rpm || '',
             frame_size: motor.frame_size || '',
             voltage: motor.voltage || '',
-            current: motor.current || ''
+            current: motor.current || '',
+            motor_description: motor.motor_description || ''
         });
         setEditingId(motor.motor_code);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -131,7 +143,7 @@ export default function MotorMaster() {
         setFormData({
             dept_id: '',
             machine_id: '',
-            make_id: '',
+            make_name: '',
             motor_code: '',
             motor_name: '',
             capacity: '',
@@ -139,7 +151,8 @@ export default function MotorMaster() {
             rpm: '',
             frame_size: '',
             voltage: '',
-            current: ''
+            current: '',
+            motor_description: ''
         });
     };
 
@@ -275,14 +288,13 @@ export default function MotorMaster() {
                             {/* Machine Number Dropdown */}
                             <div>
                                 <label className="block text-sm font-medium text-indigo-700 mb-2">
-                                    Machine Number <span className="text-red-500">*</span>
+                                     Machine Number{/* <span className="text-red-500">*</span> */}
                                 </label>
                                 <select
                                     name="machine_id"
                                     value={formData.machine_id}
                                     onChange={handleChange}
                                     className="w-full px-4 py-2.5 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                    required
                                     disabled={!formData.dept_id}
                                 >
                                     <option value="">Select Machine Number</option>
@@ -294,25 +306,20 @@ export default function MotorMaster() {
                                 </select>
                             </div>
 
-                            {/* Make Name Dropdown */}
+                            {/* Make Name Input */}
                             <div>
                                 <label className="block text-sm font-medium text-indigo-700 mb-2">
                                     Make Name <span className="text-red-500">*</span>
                                 </label>
-                                <select
-                                    name="make_id"
-                                    value={formData.make_id}
+                                <input
+                                    type="text"
+                                    name="make_name"
+                                    value={formData.make_name}
                                     onChange={handleChange}
+                                    placeholder="Enter make name (e.g., Siemens, ABB, etc.)"
                                     className="w-full px-4 py-2.5 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                                     required
-                                >
-                                    <option value="">Select Make</option>
-                                    {makes.map(make => (
-                                        <option key={make.make_id} value={make.make_id}>
-                                            {make.make_name}
-                                        </option>
-                                    ))}
-                                </select>
+                                />
                             </div>
 
                             {/* Capacity (HP) */}
@@ -325,9 +332,10 @@ export default function MotorMaster() {
                                     name="capacity"
                                     value={formData.capacity}
                                     onChange={handleChange}
-                                    placeholder="Enter capacity"
-                                    className="w-full px-4 py-2.5 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                                    placeholder="Auto-calculated from K.W."
+                                    className="w-full px-4 py-2.5 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all bg-indigo-50 cursor-not-allowed"
                                     step="0.1"
+                                    readOnly
                                 />
                             </div>
 
@@ -410,6 +418,23 @@ export default function MotorMaster() {
                                     step="0.1"
                                 />
                             </div>
+
+                            {/* Motor Description */}
+                            <div>
+                                <label className="block text-sm font-medium text-indigo-700 mb-2">
+                                    Motor Description
+                                </label>
+                                <input
+                                    type="text"
+                                    name="motor_description"
+                                    value={formData.motor_description}
+                                    onChange={handleChange}
+                                    placeholder="Description will be auto-generated"
+                                    className="w-full px-4 py-2.5 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all bg-indigo-50 cursor-not-allowed"
+                                    step="0.1"
+                                    readOnly
+                                />
+                            </div>
                         </div>
 
                         {/* Action Buttons */}
@@ -481,7 +506,7 @@ export default function MotorMaster() {
                                         <td className="px-6 py-4 font-semibold text-indigo-800">{motor.motor_name}</td>
                                         <td className="px-6 py-4 text-indigo-700">{motor.Department?.dept_name || '-'}</td>
                                         <td className="px-6 py-4 text-indigo-700">{motor.Machine?.machine_number || '-'}</td>
-                                        <td className="px-6 py-4 text-indigo-700">{motor.Make?.make_name || '-'}</td>
+                                        <td className="px-6 py-4 text-indigo-700">{motor.make_name || '-'}</td>
                                         <td className="px-6 py-4">
                                             <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 rounded-full text-sm font-medium text-indigo-700">
                                                 {motor.capacity || '-'}
