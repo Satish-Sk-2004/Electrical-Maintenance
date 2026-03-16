@@ -63,6 +63,9 @@ export default function InitialMotorAllocation() {
     const getMotorsForMachine = () => {
         if (!formData.dept_id || !formData.machine_id) return [];
 
+        const machineObj = machines.find(m => m.machine_id === Number(formData.machine_id));
+        const machineNumber = machineObj?.machine_number;
+
         // Get all allocated motor IDs for this machine (excluding current edit)
         const allocatedMotorIds = allocations
             .filter(a => {
@@ -71,24 +74,23 @@ export default function InitialMotorAllocation() {
                 }
                 return true;
             })
+            .filter(a => a.machine_number === machineNumber)
             .map(a => a.motor_id);
 
         if (showSpareOnly) {
-            // Show spare motors (not allocated or allocated as spare)
             return motors.filter(m => {
-                const allocation = allocations.find(a => a.motor_id === m.motor_code);
+                const allocation = allocations.find(a => a.motor_id === m.motor_id);
                 if (editingId && allocation?.allocation_id === editingId) {
-                    return true; // Show current edit motor
+                    return true;
                 }
-                return !allocatedMotorIds.includes(m.motor_code);
+                return !allocatedMotorIds.includes(m.motor_id);
             });
         } else {
-            // Show unallocated motors
             return motors.filter(m => {
-                if (editingId && motorAllocations[m.motor_code]?.selected) {
-                    return true; // Show already selected motor
+                if (editingId && motorAllocations[m.motor_id]?.selected) {
+                    return true;
                 }
-                return !allocatedMotorIds.includes(m.motor_code);
+                return !allocatedMotorIds.includes(m.motor_id);
             });
         }
     };
@@ -111,54 +113,58 @@ export default function InitialMotorAllocation() {
         setMotorAllocations({});
     };
 
-    const handleMotorBearingChange = (motorCode, field, value) => {
+    const handleMotorBearingChange = (motorId, field, value) => {
         setMotorAllocations(prev => ({
             ...prev,
-            [motorCode]: {
-                ...prev[motorCode],
+            [motorId]: {
+                ...prev[motorId],
                 [field]: value,
-                selected: prev[motorCode]?.selected || false
+                selected: prev[motorId]?.selected || false
             }
         }));
     };
 
-    const handleMotorSelect = (motorCode) => {
+    const handleMotorSelect = (motorId) => {
         setMotorAllocations(prev => ({
             ...prev,
-            [motorCode]: {
-                ...prev[motorCode],
-                selected: !prev[motorCode]?.selected,
-                bearing_de: prev[motorCode]?.bearing_de || '',
-                bearing_nde: prev[motorCode]?.bearing_nde || '',
-                sl_no: prev[motorCode]?.sl_no || ''
+            [motorId]: {
+                ...prev[motorId],
+                selected: !prev[motorId]?.selected,
+                bearing_de: prev[motorId]?.bearing_de || '',
+                bearing_nde: prev[motorId]?.bearing_nde || '',
+                sl_no: prev[motorId]?.sl_no || ''
             }
         }));
     };
 
-    const handleSlNoChange = (motorCode, value) => {
+    const handleSlNoChange = (motorId, value) => {
         setMotorAllocations(prev => ({
             ...prev,
-            [motorCode]: {
-                ...prev[motorCode],
+            [motorId]: {
+                ...prev[motorId],
                 sl_no: value
             }
         }));
     };
 
-
+    // In handleSubmit function
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
             setLoading(true);
 
+            // Get machine number
+            const machineObj = machines.find(m => m.machine_id === Number(formData.machine_id));
+            const machineNumber = machineObj?.machine_number;
+
             // Collect selected motors with bearing info
             const selectedMotors = Object.entries(motorAllocations)
                 .filter(([_, data]) => data.selected)
-                .map(([motorCode, data]) => {
+                .map(([motorId, data]) => {
                     const allocation = {
-                        motor_id: motorCode,
+                        motor_id: motorId,
                         dept_id: formData.dept_id === 'NONE' ? null : Number(formData.dept_id),
-                        machine_id: formData.machine_id === 'NONE' ? null : Number(formData.machine_id),
+                        machine_number: formData.dept_id === 'NONE' ? null : machineNumber,
                         is_spare: formData.dept_id === 'NONE',
                         bearing_de: data.bearing_de && data.bearing_de.trim() ? data.bearing_de : null,
                         bearing_nde: data.bearing_nde && data.bearing_nde.trim() ? data.bearing_nde : null,
@@ -393,7 +399,7 @@ export default function InitialMotorAllocation() {
                                             <tr>
                                                 <th className="px-4 py-3 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Select</th>
                                                 <th className="px-4 py-3 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Sl.No</th>
-                                                <th className="px-4 py-3 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Motor Code</th>
+                                                <th className="px-4 py-3 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Motor ID</th>
                                                 <th className="px-4 py-3 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Motor Name</th>
                                                 <th className="px-4 py-3 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Capacity</th>
                                                 <th className="px-4 py-3 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Bearing D.E</th>
@@ -402,26 +408,26 @@ export default function InitialMotorAllocation() {
                                         </thead>
                                         <tbody className="divide-y divide-indigo-100">
                                             {getMotorsForMachine().map((motor) => (
-                                                <tr key={motor.motor_code} className="hover:bg-indigo-50 transition-colors">
+                                                <tr key={motor.motor_id} className="hover:bg-indigo-50 transition-colors">
                                                     <td className="px-4 py-3">
                                                         <input
                                                             type="checkbox"
-                                                            checked={motorAllocations[motor.motor_code]?.selected || false}
-                                                            onChange={() => handleMotorSelect(motor.motor_code)}
+                                                            checked={motorAllocations[motor.motor_id]?.selected || false}
+                                                            onChange={() => handleMotorSelect(motor.motor_id)}
                                                             className="w-5 h-5 text-indigo-600 border-indigo-300 rounded focus:ring-2 focus:ring-indigo-500"
                                                         />
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         <input
                                                             type="text"
-                                                            value={motorAllocations[motor.motor_code]?.sl_no || ''}
-                                                            onChange={(e) => handleSlNoChange(motor.motor_code, e.target.value)}
+                                                            value={motorAllocations[motor.motor_id]?.sl_no || ''}
+                                                            onChange={(e) => handleSlNoChange(motor.motor_id, e.target.value)}
                                                             placeholder="Enter Sl.No"
                                                             className="w-full px-3 py-2 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                                                            disabled={!motorAllocations[motor.motor_code]?.selected}
+                                                            disabled={!motorAllocations[motor.motor_id]?.selected}
                                                         />
                                                     </td>
-                                                    <td className="px-4 py-3 text-indigo-700 font-mono text-sm">{motor.motor_code}</td>
+                                                    <td className="px-4 py-3 text-indigo-700 font-mono text-sm">{motor.motor_id}</td>
                                                     <td className="px-4 py-3 text-indigo-700">{motor.motor_name}</td>
                                                     <td className="px-4 py-3">
                                                         <span className="inline-flex items-center px-3 py-1 bg-indigo-100 rounded-full text-sm font-medium text-indigo-700">
@@ -431,21 +437,21 @@ export default function InitialMotorAllocation() {
                                                     <td className="px-4 py-3">
                                                         <input
                                                             type="text"
-                                                            value={motorAllocations[motor.motor_code]?.bearing_de || ''}
-                                                            onChange={(e) => handleMotorBearingChange(motor.motor_code, 'bearing_de', e.target.value)}
+                                                            value={motorAllocations[motor.motor_id]?.bearing_de || ''}
+                                                            onChange={(e) => handleMotorBearingChange(motor.motor_id, 'bearing_de', e.target.value)}
                                                             placeholder="Enter bearing"
                                                             className="w-full px-3 py-2 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                                                            disabled={!motorAllocations[motor.motor_code]?.selected}
+                                                            disabled={!motorAllocations[motor.motor_id]?.selected}
                                                         />
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         <input
                                                             type="text"
-                                                            value={motorAllocations[motor.motor_code]?.bearing_nde || ''}
-                                                            onChange={(e) => handleMotorBearingChange(motor.motor_code, 'bearing_nde', e.target.value)}
+                                                            value={motorAllocations[motor.motor_id]?.bearing_nde || ''}
+                                                            onChange={(e) => handleMotorBearingChange(motor.motor_id, 'bearing_nde', e.target.value)}
                                                             placeholder="Enter bearing"
                                                             className="w-full px-3 py-2 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                                                            disabled={!motorAllocations[motor.motor_code]?.selected}
+                                                            disabled={!motorAllocations[motor.motor_id]?.selected}
                                                         />
                                                     </td>
                                                 </tr>

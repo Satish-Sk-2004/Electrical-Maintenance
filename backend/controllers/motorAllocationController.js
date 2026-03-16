@@ -1,14 +1,12 @@
 const MotorAllocation = require('../models/MotorAllocation');
 const Motor = require('../models/Motor');
 const Department = require('../models/Department');
-const Machine = require('../models/Machine');
 
 exports.getAllAllocations = async (req, res) => {
     try {
         const allocations = await MotorAllocation.findAll({
             include: [
                 { model: Department, attributes: ['dept_id', 'dept_name'] },
-                { model: Machine, attributes: ['machine_id', 'machine_number'] },
                 { 
                     model: Motor, 
                     attributes: ['motor_code', 'motor_name', 'capacity']
@@ -34,9 +32,9 @@ exports.getAllAllocations = async (req, res) => {
 
 exports.createAllocation = async (req, res) => {
     try {
-        const { motor_id, dept_id, machine_id, is_spare, bearing_de, bearing_nde, sl_no } = req.body;
+        const { motor_id, dept_id, machine_number, is_spare, bearing_de, bearing_nde, sl_no } = req.body;
 
-        console.log('Creating allocation with data:', { motor_id, dept_id, machine_id, is_spare, bearing_de, bearing_nde, sl_no });
+        console.log('Creating allocation with data:', { motor_id, dept_id, machine_number, is_spare, bearing_de, bearing_nde, sl_no });
 
         // Validate motor exists
         const motor = await Motor.findByPk(motor_id);
@@ -64,7 +62,7 @@ exports.createAllocation = async (req, res) => {
         const allocation = await MotorAllocation.create({
             motor_id,
             dept_id: dept_id === 'NONE' || dept_id === null ? null : Number(dept_id),
-            machine_id: machine_id === 'NONE' || machine_id === null ? null : Number(machine_id),
+            machine_number: machine_number === 'NONE' || machine_number === null ? null : machine_number,
             is_spare: is_spare || false,
             bearing_de: bearing_de && bearing_de.trim() ? bearing_de : null,
             bearing_nde: bearing_nde && bearing_nde.trim() ? bearing_nde : null,
@@ -74,7 +72,6 @@ exports.createAllocation = async (req, res) => {
         const newAllocation = await MotorAllocation.findByPk(allocation.allocation_id, {
             include: [
                 { model: Department, attributes: ['dept_name'] },
-                { model: Machine, attributes: ['machine_number'] },
                 { 
                     model: Motor, 
                     attributes: ['motor_code', 'motor_name', 'capacity']
@@ -101,9 +98,9 @@ exports.createAllocation = async (req, res) => {
 exports.updateAllocation = async (req, res) => {
     try {
         const { allocation_id } = req.params;
-        const { motor_id, dept_id, machine_id, is_spare, bearing_de, bearing_nde, sl_no } = req.body;
+        const { motor_id, dept_id, machine_number, is_spare, bearing_de, bearing_nde, sl_no } = req.body;
 
-        console.log('Updating allocation:', allocation_id, 'with data:', { motor_id, dept_id, machine_id, is_spare, bearing_de, bearing_nde, sl_no });
+        console.log('Updating allocation:', allocation_id, 'with data:', { motor_id, dept_id, machine_number, is_spare, bearing_de, bearing_nde, sl_no });
 
         const allocation = await MotorAllocation.findByPk(allocation_id);
         if (!allocation) {
@@ -145,7 +142,7 @@ exports.updateAllocation = async (req, res) => {
         await allocation.update({
             motor_id: motor_id || allocation.motor_id,
             dept_id: dept_id !== undefined && dept_id !== null ? (dept_id === 'NONE' ? null : Number(dept_id)) : allocation.dept_id,
-            machine_id: machine_id !== undefined && machine_id !== null ? (machine_id === 'NONE' ? null : Number(machine_id)) : allocation.machine_id,
+            machine_number: machine_number !== undefined && machine_number !== null ? (machine_number === 'NONE' ? null : machine_number) : allocation.machine_number,
             is_spare: is_spare !== undefined ? is_spare : allocation.is_spare,
             bearing_de: bearing_de && bearing_de.trim() ? bearing_de : null,
             bearing_nde: bearing_nde && bearing_nde.trim() ? bearing_nde : null,
@@ -155,16 +152,9 @@ exports.updateAllocation = async (req, res) => {
         const updatedAllocation = await MotorAllocation.findByPk(allocation_id, {
             include: [
                 { model: Department, attributes: ['dept_name'] },
-                { model: Machine, attributes: ['machine_number'] },
                 { 
                     model: Motor, 
-                    attributes: ['motor_code', 'motor_name', 'capacity'],
-                    include: [
-                        { 
-                            model: Make, 
-                            attributes: ['make_name']
-                        }
-                    ]
+                    attributes: ['motor_code', 'motor_name', 'capacity']
                 }
             ]
         });
@@ -184,6 +174,7 @@ exports.updateAllocation = async (req, res) => {
         });
     }
 };
+
 
 exports.deleteAllocation = async (req, res) => {
     try {
@@ -215,24 +206,24 @@ exports.deleteAllocation = async (req, res) => {
 
 exports.getMotorsByMachine = async (req, res) => {
     try {
-        const { machine_id, dept_id } = req.query;
+        const { machine_number, dept_id } = req.query;
 
-        if (!machine_id || !dept_id) {
+        if (!machine_number || !dept_id) {
             return res.status(400).json({
                 success: false,
-                message: 'Machine ID and Department ID are required'
+                message: 'Machine Number and Department ID are required'
             });
         }
 
         const allocations = await MotorAllocation.findAll({
             where: {
-                machine_id: machine_id === 'NONE' ? null : machine_id,
+                machine_number: machine_number === 'NONE' ? null : machine_number,
                 dept_id: dept_id === 'NONE' ? null : dept_id
             },
             include: [
                 { 
                     model: Motor, 
-                    attributes: ['motor_code', 'motor_name', 'capacity', 'make_id']
+                    attributes: ['motor_code', 'motor_name', 'capacity', 'motor_id']
                 }
             ]
         });

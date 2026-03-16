@@ -20,20 +20,16 @@ MotorAllocation.init({
             key: 'dept_id'
         }
     },
-    machine_id: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        references: {
-            model: Machine,
-            key: 'machine_id'
-        }
+    machine_number: {
+        type: DataTypes.STRING(50),
+        allowNull: true
     },
     motor_id: {
-        type: DataTypes.STRING(50),
+        type: DataTypes.INTEGER,
         allowNull: false,
         references: {
             model: Motor,
-            key: 'motor_code'
+            key: 'motor_id'
         }
     },
     sl_no: {
@@ -63,13 +59,9 @@ MotorAllocation.belongsTo(Department, {
     foreignKey: 'dept_id',
     onDelete: 'SET NULL'
 });
-MotorAllocation.belongsTo(Machine, { 
-    foreignKey: 'machine_id',
-    onDelete: 'SET NULL'
-});
 MotorAllocation.belongsTo(Motor, { 
     foreignKey: 'motor_id', 
-    targetKey: 'motor_code',
+    targetKey: 'motor_id',
     onDelete: 'RESTRICT'
 });
 

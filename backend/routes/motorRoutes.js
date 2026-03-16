@@ -10,8 +10,8 @@ const {
 
 router.get('/', getMotors);
 router.post('/', addMotor);
-router.put('/:motor_code', updateMotor);
-router.delete('/:motor_code', deleteMotor);
+router.put('/:motor_id', updateMotor);
+router.delete('/:motor_id', deleteMotor);
 router.get('/by-department', getMotorsByDepartment);
 
 module.exports = router;

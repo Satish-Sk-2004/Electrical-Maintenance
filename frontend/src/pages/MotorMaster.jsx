@@ -7,15 +7,12 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 export default function MotorMaster() {
     const [motors, setMotors] = useState([]);
     const [departments, setDepartments] = useState([]);
-    const [machines, setMachines] = useState([]);
-    const [filteredMachines, setFilteredMachines] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [editingId, setEditingId] = useState(null);
 
     const [formData, setFormData] = useState({
         dept_id: '',
-        machine_id: '',
         make_name: '',
         motor_code: '',
         motor_name: '',
@@ -31,15 +28,13 @@ export default function MotorMaster() {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [motorsRes, deptRes, machinesRes] = await Promise.all([
+            const [motorsRes, deptRes] = await Promise.all([
                 axios.get(`${API_URL}/motors`),
-                axios.get(`${API_URL}/departments`),
-                axios.get(`${API_URL}/machines`)
+                axios.get(`${API_URL}/departments`)
             ]);
 
             setMotors(motorsRes.data.data);
             setDepartments(deptRes.data.data);
-            setMachines(machinesRes.data.data);
         } catch (error) {
             setError('Error fetching data: ' + error.message);
         } finally {
@@ -50,22 +45,6 @@ export default function MotorMaster() {
     useEffect(() => {
         fetchData();
     }, []);
-
-    // Filter machines based on selected department
-    useEffect(() => {
-        if (formData.dept_id) {
-            const filtered = machines.filter(
-                machine => machine.dept_id === Number(formData.dept_id)
-            );
-            setFilteredMachines(filtered);
-            if (formData.machine_id && !filtered.some(m => m.machine_id === Number(formData.machine_id))) {
-                setFormData(prev => ({ ...prev, machine_id: '' }));
-            }
-        } else {
-            setFilteredMachines([]);
-            setFormData(prev => ({ ...prev, machine_id: '' }));
-        }
-    }, [formData.dept_id, machines]);
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -109,7 +88,6 @@ export default function MotorMaster() {
     const handleEdit = (motor) => {
         setFormData({
             dept_id: motor.dept_id || '',
-            machine_id: motor.machine_id || '',
             make_name: motor.make_name || '',
             motor_code: motor.motor_code || '',
             motor_name: motor.motor_name || '',
@@ -121,15 +99,15 @@ export default function MotorMaster() {
             current: motor.current || '',
             motor_description: motor.motor_description || ''
         });
-        setEditingId(motor.motor_code);
+        setEditingId(motor.motor_id);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const handleDelete = async (motor_code) => {
+    const handleDelete = async (motor_id) => {
         if (!confirm('Are you sure you want to delete this motor?')) return;
         try {
             setLoading(true);
-            await axios.delete(`${API_URL}/motors/${motor_code}`);
+            await axios.delete(`${API_URL}/motors/${motor_id}`);
             fetchData();
         } catch (error) {
             setError('Error deleting motor: ' + error.message);
@@ -142,7 +120,6 @@ export default function MotorMaster() {
         setEditingId(null);
         setFormData({
             dept_id: '',
-            machine_id: '',
             make_name: '',
             motor_code: '',
             motor_name: '',
@@ -280,27 +257,6 @@ export default function MotorMaster() {
                                     {departments.map(dept => (
                                         <option key={dept.dept_id} value={dept.dept_id}>
                                             {dept.dept_name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Machine Number Dropdown */}
-                            <div>
-                                <label className="block text-sm font-medium text-indigo-700 mb-2">
-                                     Machine Number{/* <span className="text-red-500">*</span> */}
-                                </label>
-                                <select
-                                    name="machine_id"
-                                    value={formData.machine_id}
-                                    onChange={handleChange}
-                                    className="w-full px-4 py-2.5 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                    disabled={!formData.dept_id}
-                                >
-                                    <option value="">Select Machine Number</option>
-                                    {filteredMachines.map(machine => (
-                                        <option key={machine.machine_id} value={machine.machine_id}>
-                                            {machine.machine_number}
                                         </option>
                                     ))}
                                 </select>
@@ -487,10 +443,9 @@ export default function MotorMaster() {
                         <table className="w-full">
                             <thead className="bg-gradient-to-r from-indigo-50 to-purple-50">
                                 <tr>
-                                    <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Motor Code</th>
+                                    <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Motor ID</th>
                                     <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Motor Name</th>
                                     <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Department</th>
-                                    <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Machine No</th>
                                     <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Make</th>
                                     <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">Capacity (HP)</th>
                                     <th className="px-6 py-4 text-left text-sm font-semibold text-indigo-700 border-b border-indigo-200">K.W.</th>
@@ -501,11 +456,10 @@ export default function MotorMaster() {
                             </thead>
                             <tbody className="divide-y divide-indigo-100">
                                 {motors.map((motor) => (
-                                    <tr key={motor.motor_code} className="hover:bg-indigo-50 transition-colors">
-                                        <td className="px-6 py-4 text-indigo-700 font-mono text-sm font-semibold">{motor.motor_code}</td>
+                                    <tr key={motor.motor_id} className="hover:bg-indigo-50 transition-colors">
+                                        <td className="px-6 py-4 text-indigo-700 font-mono text-sm font-semibold">{motor.motor_id}</td>
                                         <td className="px-6 py-4 font-semibold text-indigo-800">{motor.motor_name}</td>
                                         <td className="px-6 py-4 text-indigo-700">{motor.Department?.dept_name || '-'}</td>
-                                        <td className="px-6 py-4 text-indigo-700">{motor.Machine?.machine_number || '-'}</td>
                                         <td className="px-6 py-4 text-indigo-700">{motor.make_name || '-'}</td>
                                         <td className="px-6 py-4">
                                             <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 rounded-full text-sm font-medium text-indigo-700">
@@ -527,7 +481,7 @@ export default function MotorMaster() {
                                                     Edit
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDelete(motor.motor_code)}
+                                                    onClick={() => handleDelete(motor.motor_id)}
                                                     className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all shadow-md shadow-red-500/30 flex items-center gap-1 text-sm font-medium"
                                                 >
                                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -542,7 +496,7 @@ export default function MotorMaster() {
 
                                 {motors.length === 0 && !loading && (
                                     <tr>
-                                        <td colSpan="10" className="px-6 py-12 text-center">
+                                        <td colSpan="9" className="px-6 py-12 text-center">
                                             <div className="flex flex-col items-center">
                                                 <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
                                                     <svg className="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

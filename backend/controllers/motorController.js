@@ -1,13 +1,11 @@
 const Motor = require('../models/Motor');
 const Department = require('../models/Department');
-const Machine = require('../models/Machine');
 
 exports.getMotors = async (req, res) => {
     try {
         const motors = await Motor.findAll({
             include: [
-                { model: Department, attributes: ['dept_name'] },
-                { model: Machine, attributes: ['machine_number'] }
+                { model: Department, attributes: ['dept_name'] }
             ],
             order: [['motor_code', 'ASC']]
         });
@@ -28,7 +26,7 @@ exports.getMotors = async (req, res) => {
 
 exports.addMotor = async (req, res) => {
     try {
-        const { motor_code, dept_id, machine_id, make_name, motor_name, capacity, kw, rpm, frame_size, voltage, current, motor_description } = req.body;
+        const { motor_code, dept_id, make_name, motor_name, capacity, kw, rpm, frame_size, voltage, current, motor_description } = req.body;
 
         // Validate required fields
         if (!motor_code || !motor_name || !dept_id || !make_name) {
@@ -38,8 +36,8 @@ exports.addMotor = async (req, res) => {
             });
         }
 
-        // Check if motor already exists
-        const existingMotor = await Motor.findByPk(motor_code);
+        // Check if motor code already exists
+        const existingMotor = await Motor.findOne({ where: { motor_code } });
         if (existingMotor) {
             return res.status(400).json({
                 success: false,
@@ -55,7 +53,6 @@ exports.addMotor = async (req, res) => {
         const motor = await Motor.create({
             motor_code,
             dept_id,
-            machine_id: machine_id || null,
             make_name,
             motor_name,
             capacity,
@@ -67,10 +64,9 @@ exports.addMotor = async (req, res) => {
             motor_description: finalDescription
         });
 
-        const newMotor = await Motor.findByPk(motor_code, {
+        const newMotor = await Motor.findByPk(motor.motor_id, {
             include: [
-                { model: Department, attributes: ['dept_name'] },
-                { model: Machine, attributes: ['machine_number'] }
+                { model: Department, attributes: ['dept_name'] }
             ]
         });
 
@@ -90,10 +86,10 @@ exports.addMotor = async (req, res) => {
 
 exports.updateMotor = async (req, res) => {
     try {
-        const { motor_code } = req.params;
-        const { dept_id, machine_id, make_name, motor_name, capacity, kw, rpm, frame_size, voltage, current, motor_description } = req.body;
+        const { motor_id } = req.params;
+        const { dept_id, make_name, motor_name, capacity, kw, rpm, frame_size, voltage, current, motor_description } = req.body;
 
-        const motor = await Motor.findByPk(motor_code);
+        const motor = await Motor.findByPk(motor_id);
         if (!motor) {
             return res.status(404).json({
                 success: false,
@@ -108,7 +104,6 @@ exports.updateMotor = async (req, res) => {
 
         await motor.update({
             dept_id,
-            machine_id: machine_id || null,
             make_name,
             motor_name,
             capacity,
@@ -120,10 +115,9 @@ exports.updateMotor = async (req, res) => {
             motor_description: finalDescription
         });
 
-        const updatedMotor = await Motor.findByPk(motor_code, {
+        const updatedMotor = await Motor.findByPk(motor_id, {
             include: [
-                { model: Department, attributes: ['dept_name'] },
-                { model: Machine, attributes: ['machine_number'] }
+                { model: Department, attributes: ['dept_name'] }
             ]
         });
 
@@ -143,9 +137,9 @@ exports.updateMotor = async (req, res) => {
 
 exports.deleteMotor = async (req, res) => {
     try {
-        const { motor_code } = req.params;
+        const { motor_id } = req.params;
 
-        const motor = await Motor.findByPk(motor_code);
+        const motor = await Motor.findByPk(motor_id);
         if (!motor) {
             return res.status(404).json({
                 success: false,
@@ -183,8 +177,7 @@ exports.getMotorsByDepartment = async (req, res) => {
         const motors = await Motor.findAll({
             where: { dept_id },
             include: [
-                { model: Department, attributes: ['dept_name'] },
-                { model: Machine, attributes: ['machine_number'] }
+                { model: Department, attributes: ['dept_name'] }
             ],
             order: [['motor_name', 'ASC']]
         });

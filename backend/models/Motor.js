@@ -1,15 +1,20 @@
 const { Model, DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 const Department = require('./Department');
-const Machine = require('./Machine');
 
 class Motor extends Model {}
 
 Motor.init({
+    motor_id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false
+    },
     motor_code: {
         type: DataTypes.STRING(50),
-        primaryKey: true,
-        allowNull: false
+        allowNull: true,
+        unique: true
     },
     dept_id: {
         type: DataTypes.INTEGER,
@@ -17,14 +22,6 @@ Motor.init({
         references: {
             model: Department,
             key: 'dept_id'
-        }
-    },
-    machine_id: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        references: {
-            model: Machine,
-            key: 'machine_id'
         }
     },
     make_name: {
@@ -75,6 +72,5 @@ Motor.init({
 });
 
 Motor.belongsTo(Department, { foreignKey: 'dept_id' });
-Motor.belongsTo(Machine, { foreignKey: 'machine_id' });
 
 module.exports = Motor;
